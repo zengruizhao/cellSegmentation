@@ -17,19 +17,15 @@ class model(nn.Module):
         self.encoder = net.encoder
         self.decoder = net.decoder
         self.segmentation_head = net.segmentation_head
-        self.horizontalVertical = SegmentationHead(in_channels=16,
-                                                   out_channels=2,
-                                                   kernel_size=3)
-
-    def _regression(self):
-        self.regression = self.decoder
-        print(self.regression)
+        self.horizontalVertical_head = SegmentationHead(in_channels=16,
+                                                        out_channels=2,
+                                                        kernel_size=3)
 
     def forward(self, x):
         features = self.encoder(x)
-        decoder = self.decoder(*features)
-        segmentation = self.segmentation_head(decoder)
-        horizontalVertical = self.horizontalVertical(decoder)
+        segmentation = self.segmentation_head(self.decoder(*features))
+        horizontalVertical = self.horizontalVertical_head(self.decoder(*features))
+
         return [segmentation, horizontalVertical]
 
 if __name__ == '__main__':
