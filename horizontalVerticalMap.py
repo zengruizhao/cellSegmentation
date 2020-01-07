@@ -15,8 +15,8 @@ from tqdm import tqdm
 
 def parseArgs():
     parse = argparse.ArgumentParser()
-    parse.add_argument('--path', type=str, default='../data/train/Labels')
-    parse.add_argument('--savePth', type=str, default='../data/train/HorizontalVerticalMap')
+    parse.add_argument('--path', type=str, default='../data/test/Labels')
+    parse.add_argument('--savePth', type=str, default='../data/test/HorizontalVerticalMap')
 
     return parse.parse_args()
 
@@ -48,13 +48,13 @@ def main(args):
         if not Path(args.savePth).exists():
             os.makedirs(Path(args.savePth))
 
-        # np.save(Path(args.savePth) / (i.split('.')[0] + '_horizontal.npy'), horizontalMap)
-        # np.save(Path(args.savePth) / (i.split('.')[0] + '_vertical.npy'), verticalMap)
-        plt.imshow(horizontalMap, cmap='jet')
-        plt.show()
-        plt.imshow(verticalMap, cmap='jet')
-        plt.show()
-        break
+        np.save(Path(args.savePth) / (i.split('.')[0] + '_horizontal.npy'), horizontalMap)
+        np.save(Path(args.savePth) / (i.split('.')[0] + '_vertical.npy'), verticalMap)
+        # plt.imshow(horizontalMap, cmap='jet')
+        # plt.show()
+        # plt.imshow(verticalMap, cmap='jet')
+        # plt.show()
+        # break
     print(f'Done! cost time: {time.time() - start}')
 
 if __name__ == '__main__':
