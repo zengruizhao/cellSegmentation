@@ -6,6 +6,7 @@
 """
 from torch.utils.data import Dataset
 from torchvision import transforms
+import torch.nn.functional as tf
 import numpy as np
 from pathlib import Path
 import os
@@ -13,7 +14,36 @@ from PIL import Image
 import random
 import torchvision.transforms.functional as F
 from albumentations.augmentations.transforms import RandomCrop
+import torch
 import matplotlib.pyplot as plt
+
+def getGradient(input):
+    def getSobelKernel(size):
+        hRange = np.arange(-size//2 + 1, size//2 + 1, dtype=np.float32)
+        vRange = np.arange(-size // 2 + 1, size // 2 + 1, dtype=np.float32)
+        h, v = np.meshgrid(hRange, vRange)
+        kernelH = h / (h * h + v * v + 1.0e-15)
+        kernelV = v / (h * h + v * v + 1.0e-15)
+
+        return kernelH, kernelV
+
+    h, v = input[1, ...][None, None, ...], input[0, ...][None, None, ...]
+    mh, mv = getSobelKernel(5)
+    mh = np.reshape(mh, [1, 1, 5, 5])
+    mv = np.reshape(mv, [1, 1, 5, 5])
+    dh = tf.conv2d(torch.tensor(h, dtype=torch.double), torch.tensor(mh, dtype=torch.double), stride=1, padding=2)
+    dv = tf.conv2d(torch.tensor(v, dtype=torch.double), torch.tensor(mv, dtype=torch.double), stride=1, padding=2)
+    fig, axes = plt.subplots(2, 2)
+    axes[0, 0].imshow(np.squeeze(np.array(dh))[0:200, 0:200], cmap='jet')
+    axes[0, 1].imshow(np.squeeze(np.array(h))[0:200, 0:200], cmap='jet')
+    axes[1, 0].imshow(np.squeeze(np.array(dv))[0:200, 0:200], cmap='jet')
+    axes[1, 1].imshow(np.squeeze(np.array(v))[0:200, 0:200], cmap='jet')
+    axes[0, 0].set_title('Gradient', fontsize=20)
+    axes[0, 0].set_ylabel('Horizontal', fontsize=20)
+    axes[0, 1].set_title('Raw', fontsize=20)
+    axes[1, 0].set_ylabel('Vertical', fontsize=20)
+    plt.show()
+    import matplotlib.axes._subplots
 
 
 class Data(Dataset):
@@ -97,8 +127,8 @@ class Data(Dataset):
             img = Image.open(imgPath).convert('RGB').resize((992, 992))
             mask = np.resize(np.load(maskPath)[..., -1], (992, 992))
             mask[mask > 0] = 1
-            vertical = np.resize(np.load(verticalPath), (992, 992))
-            horizontal = np.resize(np.load(horizontalPath), (992, 992))
+            vertical = Image.fromarray(np.load(verticalPath)).resize((992, 992))
+            horizontal = Image.fromarray(np.load(horizontalPath)).resize((992, 992))
 
         if self.isAugmentation and self.mode == 'train':
             img, mask, horizontal, vertical = self.augmentation(img,
@@ -109,7 +139,7 @@ class Data(Dataset):
         horizontal = np.array(horizontal)[..., None]
         vertical = np.array(vertical)[..., None]
         assert(len(np.unique(mask)) == 2)
-        horizontalVertical = np.concatenate((vertical, horizontal), axis=-1) * 100
+        horizontalVertical = np.concatenate((vertical, horizontal), axis=-1)
 
         return self.toTensor(img), mask[None, ...], np.transpose(horizontalVertical, (2, 0, 1))
 
@@ -118,4 +148,6 @@ class Data(Dataset):
 
 if __name__ == '__main__':
     data = Data(root=Path(__file__).parent.parent / 'data/test', isAugmentation=True, mode='test')
-    print(np.unique(data[0][2]))
+    hv = data[0][2]
+    getGradient(hv)
+    # print(np.unique(data[0][2]))

@@ -36,7 +36,6 @@ def parseArgs():
     parse.add_argument('--msgFrequency', type=int, default=10)
     parse.add_argument('--tensorboardPth', type=str, default='../tensorboard')
     parse.add_argument('--modelPth', type=str, default='../model')
-    parse.add_argument('--scheduleStep', type=int, default=50)
 
     return parse.parse_args()
 
@@ -75,9 +74,15 @@ def main(args, logger):
             loss.backward()
             optimizer.step()
             runningLoss.append(loss.item())
-            logger.info(f'epoch:{epoch}/{args.epoch}, '
-                        f'loss:{np.mean(runningLoss)}')
-            runningLoss = []
+            if epoch % args.msgFrequency == 0:
+                logger.info(f'epoch:{epoch}/{args.epoch}, '
+                            f'loss:{np.mean(runningLoss)}')
+
+                writter.add_scalar('Loss', np.mean(runningLoss))
+                runningLoss = []
+
+            if epoch % args.evalFrequency == 0:
+                pass
 
 
 if __name__ == '__main__':
