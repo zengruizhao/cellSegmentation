@@ -17,7 +17,7 @@ from albumentations.augmentations.transforms import RandomCrop
 import torch
 import matplotlib.pyplot as plt
 
-def getGradient(input):
+def getGradient(input, show=False):
     def getSobelKernel(size):
         hRange = np.arange(-size//2 + 1, size//2 + 1, dtype=np.float32)
         vRange = np.arange(-size // 2 + 1, size // 2 + 1, dtype=np.float32)
@@ -27,23 +27,31 @@ def getGradient(input):
 
         return kernelH, kernelV
 
-    h, v = input[1, ...][None, None, ...], input[0, ...][None, None, ...]
     mh, mv = getSobelKernel(5)
     mh = np.reshape(mh, [1, 1, 5, 5])
     mv = np.reshape(mv, [1, 1, 5, 5])
+    if type(input) is torch.Tensor:
+        input = input.cpu().detach().numpy()
+        h, v = input[:, 1, ...][:, None, ...], input[:, 0, ...][:, None, ...]
+    else:
+        h, v = input[1, ...][None, None, ...], input[0, ...][None, None, ...]
+
     dh = tf.conv2d(torch.tensor(h, dtype=torch.double), torch.tensor(mh, dtype=torch.double), stride=1, padding=2)
     dv = tf.conv2d(torch.tensor(v, dtype=torch.double), torch.tensor(mv, dtype=torch.double), stride=1, padding=2)
-    fig, axes = plt.subplots(2, 2)
-    axes[0, 0].imshow(np.squeeze(np.array(dh))[0:200, 0:200], cmap='jet')
-    axes[0, 1].imshow(np.squeeze(np.array(h))[0:200, 0:200], cmap='jet')
-    axes[1, 0].imshow(np.squeeze(np.array(dv))[0:200, 0:200], cmap='jet')
-    axes[1, 1].imshow(np.squeeze(np.array(v))[0:200, 0:200], cmap='jet')
-    axes[0, 0].set_title('Gradient', fontsize=20)
-    axes[0, 0].set_ylabel('Horizontal', fontsize=20)
-    axes[0, 1].set_title('Raw', fontsize=20)
-    axes[1, 0].set_ylabel('Vertical', fontsize=20)
-    plt.show()
-    import matplotlib.axes._subplots
+    if show:
+        fig, axes = plt.subplots(2, 2)
+        axes[0, 0].imshow(np.squeeze(np.array(dh))[0:200, 0:200], cmap='jet')
+        axes[0, 1].imshow(np.squeeze(np.array(h))[0:200, 0:200], cmap='jet')
+        axes[1, 0].imshow(np.squeeze(np.array(dv))[0:200, 0:200], cmap='jet')
+        axes[1, 1].imshow(np.squeeze(np.array(v))[0:200, 0:200], cmap='jet')
+        axes[0, 0].set_title('Gradient', fontsize=20)
+        axes[0, 0].set_ylabel('Horizontal', fontsize=20)
+        axes[0, 1].set_title('Raw', fontsize=20)
+        axes[1, 0].set_ylabel('Vertical', fontsize=20)
+        plt.show()
+        return
+    else:
+        return torch.cat((dv, dh), dim=1)
 
 
 class Data(Dataset):
@@ -141,7 +149,7 @@ class Data(Dataset):
         assert(len(np.unique(mask)) == 2)
         horizontalVertical = np.concatenate((vertical, horizontal), axis=-1)
 
-        return self.toTensor(img), mask[None, ...], np.transpose(horizontalVertical, (2, 0, 1))
+        return self.toTensor(img), mask, np.transpose(horizontalVertical, (2, 0, 1))
 
     def __len__(self):
         return len(self.imgs)
@@ -149,5 +157,5 @@ class Data(Dataset):
 if __name__ == '__main__':
     data = Data(root=Path(__file__).parent.parent / 'data/test', isAugmentation=True, mode='test')
     hv = data[0][2]
-    getGradient(hv)
+    getGradient(hv, show=True)
     # print(np.unique(data[0][2]))

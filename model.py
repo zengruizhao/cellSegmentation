@@ -13,11 +13,14 @@ import torch
 class model(nn.Module):
     def __init__(self):
         super().__init__()
-        net = smp.Unet()
+        net = smp.Unet(classes=2,
+                       encoder_depth=5,
+                       decoder_channels=[1024, 512, 256, 128, 64],
+                       encoder_name='senet154')
         self.encoder = net.encoder
         self.decoder = net.decoder
         self.segmentation_head = net.segmentation_head
-        self.horizontalVertical_head = SegmentationHead(in_channels=16,
+        self.horizontalVertical_head = SegmentationHead(in_channels=64,
                                                         out_channels=2,
                                                         kernel_size=3)
 

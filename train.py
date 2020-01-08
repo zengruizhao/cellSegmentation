@@ -13,8 +13,9 @@ from logger import getLogger
 import time
 import os.path as osp
 import os
+import matplotlib.pyplot as plt
 from tensorboardX import SummaryWriter
-from dataset import Data
+from dataset import Data, getGradient
 from torch.utils.data import DataLoader
 from ranger import Ranger
 from model import model
@@ -26,14 +27,14 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 def parseArgs():
     parse = argparse.ArgumentParser()
     parse.add_argument('--epoch', type=int, default=100)
-    parse.add_argument('--batchsizeTrain', type=int, default=4)
+    parse.add_argument('--batchsizeTrain', type=int, default=2)
     parse.add_argument('--batchsizeTest', type=int, default=16)
     parse.add_argument('--rootPth', type=str, default=Path(__file__).parent.parent / 'data')
     parse.add_argument('--logPth', type=str, default='../log')
-    parse.add_argument('--numWorkers', type=int, default=8)
+    parse.add_argument('--numWorkers', type=int, default=14)
     parse.add_argument('--evalFrequency', type=int, default=1)
     parse.add_argument('--saveFrequency', type=int, default=1)
-    parse.add_argument('--msgFrequency', type=int, default=10)
+    parse.add_argument('--msgFrequency', type=int, default=5)
     parse.add_argument('--tensorboardPth', type=str, default='../tensorboard')
     parse.add_argument('--modelPth', type=str, default='../model')
 
@@ -62,19 +63,40 @@ def main(args, logger):
                              num_workers=args.numWorkers)
     net = model().to(device)
     criterionMSE = nn.MSELoss().to(device)
-    criterionSegmentation = smploss.DiceLoss(eps=sys.float_info.min).to(device)
+    criterionDice = smploss.DiceLoss(eps=sys.float_info.min).to(device)
+    criterionCE = nn.CrossEntropyLoss().to(device)
     optimizer = Ranger(net.parameters(), lr=.01)
     runningLoss = []
+    iter = 0
     for epoch in range(args.epoch):
         for img, mask, horizontalVertical in trainLoader:
+            iter += 1
             img, mask, horizontalVertical = img.to(device), mask.to(device), horizontalVertical.to(device)
             optimizer.zero_grad()
             [branchSeg, branchMSE] = net(img)
-            loss = criterionMSE(branchMSE, horizontalVertical) + criterionSegmentation(branchSeg, mask)
+            predictionGradient = getGradient(branchMSE)
+            gtGradient = getGradient(horizontalVertical)
+            #
+            # gtGradient1 = gtGradient.cpu().detach().numpy()[0, ...]
+            # horizontalVertical1 = horizontalVertical.cpu().detach().numpy()[0, ...]
+            # fig, axes = plt.subplots(2, 2)
+            # axes[0, 0].imshow(gtGradient1[1, ...], cmap='jet')
+            # axes[0, 1].imshow(horizontalVertical1[1, ...], cmap='jet')
+            # axes[1, 0].imshow(gtGradient1[0, ...], cmap='jet')
+            # axes[1, 1].imshow(horizontalVertical1[0, ...], cmap='jet')
+            # axes[0, 0].set_title('Gradient', fontsize=20)
+            # axes[0, 0].set_ylabel('Horizontal', fontsize=20)
+            # axes[0, 1].set_title('Raw', fontsize=20)
+            # axes[1, 0].set_ylabel('Vertical', fontsize=20)
+            # plt.show()
+            loss = criterionMSE(branchMSE, horizontalVertical) + \
+                   criterionMSE(predictionGradient, gtGradient) + \
+                   criterionDice(branchSeg[:, 1, ...], mask) + \
+                   criterionCE(branchSeg, mask.long())
             loss.backward()
             optimizer.step()
             runningLoss.append(loss.item())
-            if epoch % args.msgFrequency == 0:
+            if iter % args.msgFrequency == 0:
                 logger.info(f'epoch:{epoch}/{args.epoch}, '
                             f'loss:{np.mean(runningLoss)}')
 
