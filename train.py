@@ -21,13 +21,15 @@ from ranger import Ranger
 from model import model
 import sys
 import segmentation_models_pytorch.utils.losses as smploss
+import torch.nn.functional as F
+import torch.nn as nn
 
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 
 def parseArgs():
     parse = argparse.ArgumentParser()
     parse.add_argument('--epoch', type=int, default=100)
-    parse.add_argument('--batchsizeTrain', type=int, default=2)
+    parse.add_argument('--batchsizeTrain', type=int, default=1)
     parse.add_argument('--batchsizeTest', type=int, default=16)
     parse.add_argument('--rootPth', type=str, default=Path(__file__).parent.parent / 'data')
     parse.add_argument('--logPth', type=str, default='../log')
@@ -62,11 +64,12 @@ def main(args, logger):
                              drop_last=False,
                              num_workers=args.numWorkers)
     net = model().to(device)
+    # net = nn.DataParallel(net)
     criterionMSE = nn.MSELoss().to(device)
-    criterionDice = smploss.DiceLoss(eps=sys.float_info.min, activation='softmax2d').to(device)
+    criterionDice = smploss.DiceLoss(eps=sys.float_info.min).to(device)
     criterionCE = nn.CrossEntropyLoss().to(device)
-    optimizer = Ranger(net.parameters(), lr=.01)
-    runningLoss = []
+    optimizer = Ranger(net.parameters(), lr=1e-2)
+    runningLoss, MSEloss, CEloss, Diceloss = [], [], [], []
     iter = 0
     for epoch in range(args.epoch):
         for img, mask, horizontalVertical in trainLoader:
@@ -89,19 +92,31 @@ def main(args, logger):
             # axes[0, 1].set_title('Raw', fontsize=20)
             # axes[1, 0].set_ylabel('Vertical', fontsize=20)
             # plt.show()
-            loss = criterionMSE(branchMSE, horizontalVertical) + \
-                   2. * criterionMSE(predictionGradient, gtGradient) + \
-                   criterionDice(branchSeg[:, 1, ...], mask) + \
-                   criterionCE(branchSeg, mask.long())
+            loss1 = criterionMSE(branchMSE, horizontalVertical) + \
+                   1. * criterionMSE(predictionGradient, gtGradient)
+            branchSeg = nn.Softmax2d()(branchSeg)
+            loss2 = criterionDice(branchSeg[:, 1, ...], mask)
+            loss3 = criterionCE(branchSeg, mask.long())
+            loss = loss1 + 1 * loss2 + loss3
+            # loss = criterionMSE(branchMSE, horizontalVertical) + \
+            #        2. * criterionMSE(predictionGradient, gtGradient) + \
+            #        criterionDice(branchSeg[:, 1, ...], mask) + \
+            #        criterionCE(branchSeg, mask.long())
             loss.backward()
             optimizer.step()
+            MSEloss.append(loss1.item())
+            CEloss.append(loss3.item())
+            Diceloss.append(loss2.item())
             runningLoss.append(loss.item())
             if iter % args.msgFrequency == 0:
                 logger.info(f'epoch:{epoch}/{args.epoch}, '
-                            f'loss:{np.mean(runningLoss)}')
+                            f'loss:{np.mean(runningLoss):.4f}, '
+                            f'MSEloss:{np.mean(MSEloss):.4f}, '
+                            f'Diceloss:{np.mean(Diceloss):.4f}, '
+                            f'CEloss:{np.mean(CEloss):.4f}')
 
-                writter.add_scalar('Loss', np.mean(runningLoss))
-                runningLoss = []
+                # writter.add_scalar('Loss', np.mean(runningLoss))
+                runningLoss, MSEloss, CEloss, Diceloss = [], [], [], []
 
             if epoch % args.evalFrequency == 0:
                 pass
