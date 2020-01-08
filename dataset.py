@@ -19,12 +19,15 @@ import matplotlib.pyplot as plt
 class Data(Dataset):
     def __init__(self, root=Path(__file__),
                  cropSize=(512, 512),
-                 isAugmentation=False):
+                 isAugmentation=False,
+                 mode='train'):
+        self.mode = mode
         self.isAugmentation = isAugmentation
         self.crop = True
         self.cropSize = cropSize
         self.root = root
         self.imgs = os.listdir(Path(root) / 'Images')
+        assert(mode in ['train', 'test'])
         self.toTensor = transforms.Compose([transforms.ToTensor(),
                                             transforms.Normalize((0.80508233, 0.80461432, 0.8043749),
                                                                  (0.14636562, 0.1467832,  0.14712358))])
@@ -84,28 +87,35 @@ class Data(Dataset):
             Path(self.root) / 'HorizontalVerticalMap' / (self.imgs[item].split('.')[0] + '_vertical.npy'))
         horizontalPath = Path(
             Path(self.root) / 'HorizontalVerticalMap' / (self.imgs[item].split('.')[0] + '_horizontal.npy'))
-        img = Image.open(imgPath).convert('RGB')
-        mask = np.load(maskPath)[..., -1]
-        mask[mask > 0] = 1
-        vertical = np.load(verticalPath)
-        horizontal = np.load(horizontalPath)
-        if self.isAugmentation:
+        if self.mode == 'train':
+            img = Image.open(imgPath).convert('RGB')
+            mask = np.load(maskPath)[..., -1]
+            mask[mask > 0] = 1
+            vertical = np.load(verticalPath)
+            horizontal = np.load(horizontalPath)
+        else:
+            img = Image.open(imgPath).convert('RGB').resize((992, 992))
+            mask = np.resize(np.load(maskPath)[..., -1], (992, 992))
+            mask[mask > 0] = 1
+            vertical = np.resize(np.load(verticalPath), (992, 992))
+            horizontal = np.resize(np.load(horizontalPath), (992, 992))
+
+        if self.isAugmentation and self.mode == 'train':
             img, mask, horizontal, vertical = self.augmentation(img,
                                                                 Image.fromarray(mask),
                                                                 Image.fromarray(horizontal),
                                                                 Image.fromarray(vertical))
 
-        print(np.unique(horizontal))
         horizontal = np.array(horizontal)[..., None]
         vertical = np.array(vertical)[..., None]
         assert(len(np.unique(mask)) == 2)
-        horizontalVertical = np.concatenate((vertical, horizontal), axis=-1)
+        horizontalVertical = np.concatenate((vertical, horizontal), axis=-1) * 100
 
-        return self.toTensor(img), mask, horizontalVertical
+        return self.toTensor(img), mask[None, ...], np.transpose(horizontalVertical, (2, 0, 1))
 
     def __len__(self):
         return len(self.imgs)
 
 if __name__ == '__main__':
-    data = Data(root=Path(__file__).parent.parent / 'data/train', isAugmentation=True)
-    data[0]
+    data = Data(root=Path(__file__).parent.parent / 'data/test', isAugmentation=True, mode='test')
+    print(np.unique(data[0][2]))
