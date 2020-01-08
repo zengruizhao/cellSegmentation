@@ -63,7 +63,7 @@ def main(args, logger):
                              num_workers=args.numWorkers)
     net = model().to(device)
     criterionMSE = nn.MSELoss().to(device)
-    criterionDice = smploss.DiceLoss(eps=sys.float_info.min).to(device)
+    criterionDice = smploss.DiceLoss(eps=sys.float_info.min, activation='softmax2d').to(device)
     criterionCE = nn.CrossEntropyLoss().to(device)
     optimizer = Ranger(net.parameters(), lr=.01)
     runningLoss = []
@@ -90,7 +90,7 @@ def main(args, logger):
             # axes[1, 0].set_ylabel('Vertical', fontsize=20)
             # plt.show()
             loss = criterionMSE(branchMSE, horizontalVertical) + \
-                   criterionMSE(predictionGradient, gtGradient) + \
+                   2. * criterionMSE(predictionGradient, gtGradient) + \
                    criterionDice(branchSeg[:, 1, ...], mask) + \
                    criterionCE(branchSeg, mask.long())
             loss.backward()
