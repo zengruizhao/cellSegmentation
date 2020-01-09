@@ -24,12 +24,12 @@ import segmentation_models_pytorch.utils.losses as smploss
 import torch.nn.functional as F
 import torch.nn as nn
 
-device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 def parseArgs():
     parse = argparse.ArgumentParser()
-    parse.add_argument('--epoch', type=int, default=100)
-    parse.add_argument('--batchsizeTrain', type=int, default=1)
+    parse.add_argument('--epoch', type=int, default=300)
+    parse.add_argument('--batchsizeTrain', type=int, default=4)
     parse.add_argument('--batchsizeTest', type=int, default=16)
     parse.add_argument('--rootPth', type=str, default=Path(__file__).parent.parent / 'data')
     parse.add_argument('--logPth', type=str, default='../log')
@@ -64,11 +64,11 @@ def main(args, logger):
                              drop_last=False,
                              num_workers=args.numWorkers)
     net = model().to(device)
-    # net = nn.DataParallel(net)
+    net = nn.DataParallel(net)
     criterionMSE = nn.MSELoss().to(device)
-    criterionDice = smploss.DiceLoss(eps=sys.float_info.min).to(device)
+    criterionDice = smploss.DiceLoss(eps=1e-7).to(device)
     criterionCE = nn.CrossEntropyLoss().to(device)
-    optimizer = Ranger(net.parameters(), lr=1e-2)
+    optimizer = Ranger(net.parameters(), lr=1.e-1)
     runningLoss, MSEloss, CEloss, Diceloss = [], [], [], []
     iter = 0
     for epoch in range(args.epoch):
@@ -93,11 +93,11 @@ def main(args, logger):
             # axes[1, 0].set_ylabel('Vertical', fontsize=20)
             # plt.show()
             loss1 = criterionMSE(branchMSE, horizontalVertical) + \
-                   1. * criterionMSE(predictionGradient, gtGradient)
+                   2. * criterionMSE(predictionGradient, gtGradient)
             branchSeg = nn.Softmax2d()(branchSeg)
             loss2 = criterionDice(branchSeg[:, 1, ...], mask)
             loss3 = criterionCE(branchSeg, mask.long())
-            loss = loss1 + 1 * loss2 + loss3
+            loss = loss1 + loss2 + loss3
             # loss = criterionMSE(branchMSE, horizontalVertical) + \
             #        2. * criterionMSE(predictionGradient, gtGradient) + \
             #        criterionDice(branchSeg[:, 1, ...], mask) + \

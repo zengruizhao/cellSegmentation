@@ -19,17 +19,17 @@ import matplotlib.pyplot as plt
 
 def getGradient(input, show=False):
     def getSobelKernel(size):
-        hRange = np.arange(-size//2 + 1, size//2 + 1, dtype=np.float32)
-        vRange = np.arange(-size // 2 + 1, size // 2 + 1, dtype=np.float32)
-        h, v = np.meshgrid(hRange, vRange)
+        hvRange = np.arange(-size // 2 + 1, size // 2 + 1, dtype=np.float32)
+        h, v = np.meshgrid(hvRange, hvRange)
         kernelH = h / (h * h + v * v + 1.0e-15)
         kernelV = v / (h * h + v * v + 1.0e-15)
 
         return kernelH, kernelV
 
-    mh, mv = getSobelKernel(5)
-    mh = np.reshape(mh, [1, 1, 5, 5])
-    mv = np.reshape(mv, [1, 1, 5, 5])
+    kernelSize = 5
+    mh, mv = getSobelKernel(kernelSize)
+    mh = np.reshape(mh, [1, 1, kernelSize, kernelSize])
+    mv = np.reshape(mv, [1, 1, kernelSize, kernelSize])
     if type(input) is torch.Tensor:
         input = input.cpu().detach().numpy()
         h, v = input[:, 1, ...][:, None, ...], input[:, 0, ...][:, None, ...]
@@ -39,11 +39,12 @@ def getGradient(input, show=False):
     dh = tf.conv2d(torch.tensor(h, dtype=torch.double), torch.tensor(mh, dtype=torch.double), stride=1, padding=2)
     dv = tf.conv2d(torch.tensor(v, dtype=torch.double), torch.tensor(mv, dtype=torch.double), stride=1, padding=2)
     if show:
+        size = 200
         fig, axes = plt.subplots(2, 2)
-        axes[0, 0].imshow(np.squeeze(np.array(dh))[0:200, 0:200], cmap='jet')
-        axes[0, 1].imshow(np.squeeze(np.array(h))[0:200, 0:200], cmap='jet')
-        axes[1, 0].imshow(np.squeeze(np.array(dv))[0:200, 0:200], cmap='jet')
-        axes[1, 1].imshow(np.squeeze(np.array(v))[0:200, 0:200], cmap='jet')
+        axes[0, 0].imshow(-np.squeeze(np.array(dh))[0:size, 0:size], cmap='jet')
+        axes[0, 1].imshow(np.squeeze(np.array(h))[0:size, 0:size], cmap='jet')
+        axes[1, 0].imshow(-np.squeeze(np.array(dv))[0:size, 0:size], cmap='jet')
+        axes[1, 1].imshow(np.squeeze(np.array(v))[0:size, 0:size], cmap='jet')
         axes[0, 0].set_title('Gradient', fontsize=20)
         axes[0, 0].set_ylabel('Horizontal', fontsize=20)
         axes[0, 1].set_title('Raw', fontsize=20)
