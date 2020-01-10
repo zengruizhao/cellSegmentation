@@ -16,6 +16,10 @@ import torchvision.transforms.functional as F
 from albumentations.augmentations.transforms import RandomCrop
 import torch
 import matplotlib.pyplot as plt
+import cv2
+from skimage.morphology import remove_small_objects, watershed
+from scipy.ndimage import measurements
+from scipy.ndimage.morphology import binary_fill_holes
 
 def getGradient(input, show=False):
     def getSobelKernel(size):
@@ -53,6 +57,36 @@ def getGradient(input, show=False):
         return
     else:
         return torch.cat((dv, dh), dim=1)
+
+def proc(mask, hv):
+    h, v = hv[1, ...], hv[0, ...]
+    h = cv2.normalize(h, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+    v = cv2.normalize(v, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+    hSobel = cv2.Sobel(h, cv2.CV_64F, 1, 0, ksize=3)
+    vSobel = cv2.Sobel(v, cv2.CV_64F, 1, 0, ksize=3)
+    hSobel = 1 - cv2.normalize(hSobel, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+    vSobel = 1 - cv2.normalize(vSobel, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+    Sm = np.maximum(hSobel, vSobel)
+    Sm = Sm - (1 - mask)
+    Sm[Sm < 0] = 0
+    # Energy Landscape
+    E = (1. - Sm) * mask
+    E = -cv2.GaussianBlur(E, (3, 3), 0)
+    # plt.imshow(E, cmap='jet')
+    # plt.show()
+
+    Sm[Sm >= .4] = 1
+    Sm[Sm < .4] = 0
+    marker = mask - Sm
+    marker[marker < 0] = 0
+    marker = binary_fill_holes(marker).astype('uint8')
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    marker = cv2.morphologyEx(marker, cv2.MORPH_CLOSE, kernel)
+    marker = measurements.label(marker)[0]
+    pred = watershed(E, marker, mask=mask)
+    print(pred.shape)
+    plt.imshow(pred, cmap='jet')
+    plt.show()
 
 
 class Data(Dataset):
@@ -132,31 +166,28 @@ class Data(Dataset):
             mask[mask > 0] = 1
             vertical = np.load(verticalPath)
             horizontal = np.load(horizontalPath)
+            if self.isAugmentation:
+                img, mask, horizontal, vertical = self.augmentation(img,
+                                                                    Image.fromarray(mask),
+                                                                    Image.fromarray(horizontal),
+                                                                    Image.fromarray(vertical))
+            horizontal = np.array(horizontal)[..., None]
+            vertical = np.array(vertical)[..., None]
+            assert (len(np.unique(mask)) == 2)
+            horizontalVertical = np.concatenate((vertical, horizontal), axis=-1)
+
+            return self.toTensor(img), mask[None, ...], np.transpose(horizontalVertical, (2, 0, 1))
         else:
             img = Image.open(imgPath).convert('RGB').resize((992, 992))
-            mask = np.resize(np.load(maskPath)[..., -1], (992, 992))
-            mask[mask > 0] = 1
-            vertical = Image.fromarray(np.load(verticalPath)).resize((992, 992))
-            horizontal = Image.fromarray(np.load(horizontalPath)).resize((992, 992))
-
-        if self.isAugmentation and self.mode == 'train':
-            img, mask, horizontal, vertical = self.augmentation(img,
-                                                                Image.fromarray(mask),
-                                                                Image.fromarray(horizontal),
-                                                                Image.fromarray(vertical))
-
-        horizontal = np.array(horizontal)[..., None]
-        vertical = np.array(vertical)[..., None]
-        assert(len(np.unique(mask)) == 2)
-        horizontalVertical = np.concatenate((vertical, horizontal), axis=-1)
-
-        return self.toTensor(img), mask, np.transpose(horizontalVertical, (2, 0, 1))
+            mask = np.array(Image.fromarray(np.load(maskPath)[..., 0]).resize((992, 992)), dtype=np.int16)
+            return self.toTensor(img), mask
 
     def __len__(self):
         return len(self.imgs)
 
 if __name__ == '__main__':
-    data = Data(root=Path(__file__).parent.parent / 'data/test', isAugmentation=True, mode='test')
-    hv = data[0][2]
-    getGradient(hv, show=True)
+    data = Data(root=Path(__file__).parent.parent / 'data/train', isAugmentation=False, mode='train')
+    mask, hv = data[0][1], data[0][2]
+    proc(mask[0, ...], hv)
+    # getGradient(hv, show=True)
     # print(np.unique(data[0][2]))
