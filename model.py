@@ -16,7 +16,7 @@ class model(nn.Module):
         net = smp.Unet(classes=1,
                        encoder_depth=5,
                        decoder_channels=[1024, 512, 256, 128, 64],
-                       encoder_name='senet154',
+                       encoder_name='se_resnext101_32x4d',
                        activation='sigmoid')
         self.encoder = net.encoder
         self.decoder = net.decoder

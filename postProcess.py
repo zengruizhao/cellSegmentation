@@ -22,8 +22,8 @@ def proc(pred):
     ##
     h = cv2.normalize(h, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
     v = cv2.normalize(v, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-    hSobel = cv2.Sobel(h, cv2.CV_64F, 1, 0, ksize=3)
-    vSobel = cv2.Sobel(v, cv2.CV_64F, 1, 0, ksize=3)
+    hSobel = cv2.Sobel(h, cv2.CV_64F, 1, 0, ksize=21)
+    vSobel = cv2.Sobel(v, cv2.CV_64F, 0, 1, ksize=21)
     hSobel = 1 - cv2.normalize(hSobel, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
     vSobel = 1 - cv2.normalize(vSobel, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
 

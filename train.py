@@ -27,19 +27,19 @@ import torch.nn as nn
 from postProcess import proc
 from metrics import *
 
-device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 # device = torch.device('cpu')
 
 def parseArgs():
     parse = argparse.ArgumentParser()
-    parse.add_argument('--epoch', type=int, default=300)
-    parse.add_argument('--batchsizeTrain', type=int, default=2)
-    parse.add_argument('--batchsizeTest', type=int, default=2)
+    parse.add_argument('--epoch', type=int, default=1000)
+    parse.add_argument('--batchsizeTrain', type=int, default=8)
+    parse.add_argument('--batchsizeTest', type=int, default=4)
     parse.add_argument('--rootPth', type=str, default=Path(__file__).parent.parent / 'data')
     parse.add_argument('--logPth', type=str, default='../log')
     parse.add_argument('--numWorkers', type=int, default=14)
-    parse.add_argument('--evalFrequency', type=int, default=50)
-    parse.add_argument('--saveFrequency', type=int, default=1)
+    parse.add_argument('--evalFrequency', type=int, default=100)
+    parse.add_argument('--saveFrequency', type=int, default=100)
     parse.add_argument('--msgFrequency', type=int, default=5)
     parse.add_argument('--tensorboardPth', type=str, default='../tensorboard')
     parse.add_argument('--modelPth', type=str, default='../model')
@@ -66,18 +66,18 @@ def eval(net, dataloader, logger):
                 aji.append(metricAJI)
                 dice2.append(metricDice2)
 
-    logger.info(f'dq: {np.mean(dq)}, '
-                f'sq: {np.mean(sq)}, '
-                f'pq: {np.mean(pq)}, '
-                f'AJI: {np.mean(aji)}, '
-                f'Dice2: {np.mean(dice2)}')
+    logger.info(f'dq: {np.mean(dq):.4f}, \n'
+                f'sq: {np.mean(sq):.4f}, \n'
+                f'pq: {np.mean(pq):.4f}, \n'
+                f'AJI: {np.mean(aji):.4f}, \n'
+                f'Dice2: {np.mean(dice2):.4f}.')
 
 def main(args, logger):
     writter = SummaryWriter(logdir=args.subTensorboardPth)
     trainSet = Data(root=Path(args.rootPth) / 'train',
                     mode='train',
                     isAugmentation=True,
-                    cropSize=(512, 512))
+                    cropSize=(384, 384))
     trainLoader = DataLoader(trainSet,
                              batch_size=args.batchsizeTrain,
                              shuffle=True,
@@ -85,8 +85,8 @@ def main(args, logger):
                              drop_last=False,
                              num_workers=args.numWorkers)
     testSet = Data(root=Path(args.rootPth) / 'test',
-                    mode='test',
-                    isAugmentation=False)
+                   mode='test',
+                   isAugmentation=False)
     testLoader = DataLoader(testSet,
                              batch_size=args.batchsizeTest,
                              shuffle=False,
@@ -94,18 +94,24 @@ def main(args, logger):
                              drop_last=False,
                              num_workers=args.numWorkers)
     net = model().to(device)
-    # net = nn.DataParallel(net)
+    net = nn.DataParallel(net)
     criterionMSE = nn.MSELoss().to(device)
     criterionDice = smploss.DiceLoss(eps=1e-7).to(device)
     # criterionCE = nn.CrossEntropyLoss().to(device)
     criterionCE = nn.BCELoss().to(device)
-    optimizer = Ranger(net.parameters(), lr=1.e-1)
+    optimizer = Ranger(net.parameters(), lr=1.e-2)
     runningLoss, MSEloss, CEloss, Diceloss = [], [], [], []
     iter = 0
     for epoch in range(args.epoch):
         if epoch != 0 and epoch % args.evalFrequency == 0:
             logger.info(f'===============Eval after epoch {epoch}...===================')
             eval(net, testLoader, logger)
+
+        if epoch != 0 and epoch % args.saveFrequency == 0:
+            logger.info(f'===============Save after epoch {epoch}...===================')
+            modelName = Path(args.subModelPth) / f'out_{epoch}.pth'
+            state_dict = net.module.state_dict() if hasattr(net, 'module') else net.state_dict()
+            torch.save(state_dict, modelName)
 
         for img, mask, horizontalVertical in trainLoader:
             iter += 1
@@ -119,7 +125,7 @@ def main(args, logger):
                    2. * criterionMSE(predictionGradient, gtGradient)
             loss2 = criterionCE(branchSeg, mask)
             loss3 = criterionDice(branchSeg, mask)
-            loss = loss1 + loss2 + loss3
+            loss = 2 * loss1 + loss2 + 2 * loss3
 
             loss.backward()
             optimizer.step()
@@ -136,6 +142,8 @@ def main(args, logger):
 
                 # writter.add_scalar('Loss', np.mean(runningLoss))
                 runningLoss, MSEloss, CEloss, Diceloss = [], [], [], []
+
+    eval(net, testLoader, logger)
 
 if __name__ == '__main__':
     args = parseArgs()

@@ -20,6 +20,7 @@ import cv2
 from skimage.morphology import remove_small_objects, watershed
 from scipy.ndimage import measurements
 from scipy.ndimage.morphology import binary_fill_holes
+from metrics import *
 
 def getGradient(input, show=False):
     def getSobelKernel(size):
@@ -62,8 +63,8 @@ def proc(mask, hv):
     h, v = hv[1, ...], hv[0, ...]
     h = cv2.normalize(h, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
     v = cv2.normalize(v, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-    hSobel = cv2.Sobel(h, cv2.CV_64F, 1, 0, ksize=3)
-    vSobel = cv2.Sobel(v, cv2.CV_64F, 1, 0, ksize=3)
+    hSobel = cv2.Sobel(h, cv2.CV_64F, 1, 0, ksize=21)
+    vSobel = cv2.Sobel(v, cv2.CV_64F, 0, 1, ksize=21)
     hSobel = 1 - cv2.normalize(hSobel, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
     vSobel = 1 - cv2.normalize(vSobel, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
     Sm = np.maximum(hSobel, vSobel)
@@ -72,8 +73,6 @@ def proc(mask, hv):
     # Energy Landscape
     E = (1. - Sm) * mask
     E = -cv2.GaussianBlur(E, (3, 3), 0)
-    # plt.imshow(E, cmap='jet')
-    # plt.show()
 
     Sm[Sm >= .4] = 1
     Sm[Sm < .4] = 0
@@ -81,13 +80,17 @@ def proc(mask, hv):
     marker[marker < 0] = 0
     marker = binary_fill_holes(marker).astype('uint8')
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-    marker = cv2.morphologyEx(marker, cv2.MORPH_CLOSE, kernel)
+    marker = cv2.morphologyEx(marker, cv2.MORPH_OPEN, kernel)
     marker = measurements.label(marker)[0]
+    marker = remove_small_objects(marker, min_size=10)
     pred = watershed(E, marker, mask=mask)
-    print(pred.shape)
-    plt.imshow(pred, cmap='jet')
-    plt.show()
 
+    a = list(np.unique(pred))[1:]
+    np.random.shuffle(a)
+    temp = np.zeros_like(pred)
+    for idx, i in enumerate(list(a)):
+        temp[pred==(idx+1)] = a[idx]
+    return temp, E
 
 class Data(Dataset):
     def __init__(self, root=Path(__file__),
@@ -144,12 +147,16 @@ class Data(Dataset):
             sf = sf_list[random.randint(0, len(sf_list) - 1)]
             img = F.adjust_saturation(img, saturation_factor=sf)
         if self.crop:
-            transform = RandomCrop(self.cropSize[0], self.cropSize[1])
-            wh = transform.get_params()
-            img = transform.apply(np.array(img), h_start=wh['h_start'], w_start=wh['w_start'])
-            mask = transform.apply(np.array(mask), h_start=wh['h_start'], w_start=wh['w_start'])
-            vertical = transform.apply(np.array(vertical), h_start=wh['h_start'], w_start=wh['w_start'])
-            horizontal = transform.apply(np.array(horizontal), h_start=wh['h_start'], w_start=wh['w_start'])
+            while True:
+                transform = RandomCrop(self.cropSize[0], self.cropSize[1])
+                wh = transform.get_params()
+                img_ = transform.apply(np.array(img), h_start=wh['h_start'], w_start=wh['w_start'])
+                vertical_ = transform.apply(np.array(vertical), h_start=wh['h_start'], w_start=wh['w_start'])
+                horizontal_ = transform.apply(np.array(horizontal), h_start=wh['h_start'], w_start=wh['w_start'])
+                mask_ = transform.apply(np.array(mask), h_start=wh['h_start'], w_start=wh['w_start'])
+                if len(np.unique(mask_)) == 2:
+                    img, vertical, horizontal, mask = img_, vertical_, horizontal_, mask_
+                    break
 
         return img, mask, horizontal, vertical
 
@@ -185,9 +192,61 @@ class Data(Dataset):
     def __len__(self):
         return len(self.imgs)
 
+class Datatemp(Dataset):
+    def __init__(self, root=Path(__file__)):
+        self.root = root
+        self.imgs = os.listdir(Path(root) / 'Images')
+
+    def __getitem__(self, item):
+        maskPath = Path(Path(self.root) / 'Labels' / (self.imgs[item].split('.')[0] + '.npy'))
+        verticalPath = Path(
+            Path(self.root) / 'HorizontalVerticalMap' / (self.imgs[item].split('.')[0] + '_vertical.npy'))
+        horizontalPath = Path(
+            Path(self.root) / 'HorizontalVerticalMap' / (self.imgs[item].split('.')[0] + '_horizontal.npy'))
+
+        mask = np.array(np.load(maskPath), dtype=np.int16)
+        mask0 = mask[..., 0]
+        mask1 = mask[..., 1]
+        mask1[mask1 > 0] = 1
+        vertical = np.load(verticalPath)
+        horizontal = np.load(horizontalPath)
+        horizontal = np.array(horizontal)[..., None]
+        vertical = np.array(vertical)[..., None]
+        horizontalVertical = np.concatenate((vertical, horizontal), axis=-1)
+
+        return mask0, mask1, np.transpose(horizontalVertical, (2, 0, 1))
+
+
+    def __len__(self):
+        return len(self.imgs)
+
 if __name__ == '__main__':
-    data = Data(root=Path(__file__).parent.parent / 'data/train', isAugmentation=False, mode='train')
-    mask, hv = data[0][1], data[0][2]
-    proc(mask[0, ...], hv)
+    # data = Datatemp(root=Path(__file__).parent.parent / 'data/train')
+    # for i in data:
+    #     mask0, mask1, hv = i[0], i[1], i[2]
+    #     pred, E = proc(mask1, hv)
+    #     metricPQ, _ = get_fast_pq(mask0, pred)
+    #     metricAJI = get_fast_aji_plus(mask0, pred)
+    #     metricDice2 = get_fast_dice_2(mask0, pred)
+    #     print(f'AJI: {metricAJI:.4f}, '
+    #           f'Dice2: {metricDice2:.4f}, '
+    #           f'dq: {metricPQ[0]:.4f}, '
+    #           f'sq: {metricPQ[1]:.4f}, '
+    #           f'pq: {metricPQ[2]:.4f}')
+    #     fig, ax = plt.subplots(1, 3)
+    #     ax[0].imshow(mask0, cmap='jet')
+    #     ax[1].imshow(pred, cmap='jet')
+    #     ax[2].imshow(E, cmap='jet')
+    #     ax[0].set_title('Mask', fontsize=20)
+    #     ax[1].set_title('Proc', fontsize=20)
+    #     ax[2].set_title('Energy', fontsize=20)
+    #     plt.show()
+        # break
+    data = Data(root=Path(__file__).parent.parent / 'data/train',
+               mode='train',
+               isAugmentation=True,
+               cropSize=(256, 256))
+    for i in data:
+        print(i[1].shape)
     # getGradient(hv, show=True)
     # print(np.unique(data[0][2]))
