@@ -5,6 +5,7 @@
 @Author : Zengrui Zhao
 """
 import torch
+from metrics import *
 import numpy as np
 import argparse
 from pathlib import Path
@@ -18,12 +19,9 @@ from dataset import Data, getGradient
 from torch.utils.data import DataLoader
 from ranger import Ranger
 from model import model
-import sys
 import segmentation_models_pytorch.utils.losses as smploss
-import torch.nn.functional as F
 import torch.nn as nn
 from postProcess import proc
-from metrics import *
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 # device = torch.device('cpu')
@@ -53,8 +51,6 @@ def eval(net, dataloader, logger):
             pred = torch.cat((branchSeg, branchMSE), dim=1)
             for i in range(pred.shape[0]):
                 output = proc(pred[i, ...])
-                # plt.imshow(output, cmap='jet')
-                # plt.show()
                 metricPQ, _ = get_fast_pq(mask[i, ...], output)
                 metricDice = get_dice_1(mask[i, ...], output)
                 dq.append(metricPQ[0])

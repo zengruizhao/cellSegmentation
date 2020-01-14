@@ -80,8 +80,8 @@ def proc(mask, hv):
     marker = binary_fill_holes(marker).astype('uint8')
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     marker = cv2.morphologyEx(marker, cv2.MORPH_OPEN, kernel)
+    marker = remove_small_objects(np.array(marker, bool), min_size=10)
     marker = measurements.label(marker)[0]
-    marker = remove_small_objects(marker, min_size=10)
     pred = watershed(E, marker, mask=mask)
 
     a = list(np.unique(pred))[1:]
@@ -103,9 +103,9 @@ class Data(Dataset):
         self.root = root
         self.imgs = os.listdir(Path(root) / 'Images')
         assert(mode in ['train', 'test'])
-        self.toTensor = transforms.Compose([transforms.ToTensor(),])
-                                            # transforms.Normalize((0.80508233, 0.80461432, 0.8043749),
-                                            #                      (0.14636562, 0.1467832,  0.14712358))])
+        self.toTensor = transforms.Compose([transforms.ToTensor(),
+                                            transforms.Normalize((0.80508233, 0.80461432, 0.8043749),
+                                                                 (0.14636562, 0.1467832,  0.14712358))])
 
     def augmentation(self, img, mask, horizontal, vertical):
         blurM = MedianBlur()
@@ -124,22 +124,22 @@ class Data(Dataset):
                                                       Image.fromarray(horizontal_), \
                                                       Image.fromarray(mask_)
                     break
-        # if random.random() < .33:
-        #     img = img.transpose(Image.FLIP_LEFT_RIGHT)
-        #     mask = mask.transpose(Image.FLIP_LEFT_RIGHT)
-        #     horizontal = horizontal.transpose(Image.FLIP_LEFT_RIGHT)
-        #     vertical = vertical.transpose(Image.FLIP_LEFT_RIGHT)
-        # elif random.random() < .66:
-        #     img = img.transpose(Image.FLIP_TOP_BOTTOM)
-        #     mask = mask.transpose(Image.FLIP_TOP_BOTTOM)
-        #     horizontal = horizontal.transpose(Image.FLIP_TOP_BOTTOM)
-        #     vertical = vertical.transpose(Image.FLIP_TOP_BOTTOM)
-        # else:
-        #     angle = np.random.choice([0, 90, -90, 180])
-        #     img = F.rotate(img, angle=angle, resample=Image.BILINEAR)
-        #     mask = F.rotate(mask, angle=angle)
-        #     horizontal = F.rotate(horizontal, angle=angle)
-        #     vertical = F.rotate(vertical, angle=angle)
+        if random.random() < .33:
+            img = img.transpose(Image.FLIP_LEFT_RIGHT)
+            mask = mask.transpose(Image.FLIP_LEFT_RIGHT)
+            horizontal = horizontal.transpose(Image.FLIP_LEFT_RIGHT)
+            vertical = vertical.transpose(Image.FLIP_LEFT_RIGHT)
+        elif random.random() < .66:
+            img = img.transpose(Image.FLIP_TOP_BOTTOM)
+            mask = mask.transpose(Image.FLIP_TOP_BOTTOM)
+            horizontal = horizontal.transpose(Image.FLIP_TOP_BOTTOM)
+            vertical = vertical.transpose(Image.FLIP_TOP_BOTTOM)
+        else:
+            angle = np.random.choice([0, 90, -90, 180])
+            img = F.rotate(img, angle=angle, resample=Image.BILINEAR)
+            mask = F.rotate(mask, angle=angle)
+            horizontal = F.rotate(horizontal, angle=angle)
+            vertical = F.rotate(vertical, angle=angle)
 
         if random.random() < 0.3:  # brightness
             bf_list = np.linspace(0.8, 1.2, 9)

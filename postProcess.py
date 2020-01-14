@@ -12,10 +12,11 @@ from scipy.ndimage.morphology import binary_fill_holes
 import matplotlib.pyplot as plt
 
 def proc(pred):
+    thresSeg, thresSm = .95, .7
     pred = pred.cpu().detach().numpy()
     seg, h, v = pred[0, ...,], pred[1, ...], pred[2, ...]
-    seg[seg >= .5] = 1
-    seg[seg < .5] = 0
+    seg[seg >= thresSeg] = 1
+    seg[seg < thresSeg] = 0
     seg = measurements.label(seg)[0]
     seg = remove_small_objects(seg, min_size=10)
     seg[seg > 0] = 1
@@ -33,8 +34,7 @@ def proc(pred):
     # Energy Landscape
     E = (1. - Sm) * seg
     E = -cv2.GaussianBlur(E, (3, 3), 0)
-
-    thresSm = 0.7
+    #
     Sm[Sm >= thresSm] = 1
     Sm[Sm < thresSm] = 0
     marker = seg - Sm
@@ -42,9 +42,17 @@ def proc(pred):
     marker = binary_fill_holes(marker).astype('uint8')
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     marker = cv2.morphologyEx(marker, cv2.MORPH_OPEN, kernel)
+    marker = remove_small_objects(np.array(marker, bool), min_size=10)
     marker = measurements.label(marker)[0]
-    marker = remove_small_objects(marker, min_size=10)
     pred = watershed(E, marker, mask=seg)
+    # shuffle
+    a = list(np.unique(pred))[1:]
+    np.random.shuffle(a)
+    temp = np.zeros_like(pred)
+    for idx, i in enumerate(list(a)):
+        temp[pred == (idx + 1)] = a[idx]
+    pred = temp
+
     return pred
 
 if __name__ == '__main__':

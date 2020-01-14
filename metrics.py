@@ -195,12 +195,12 @@ def get_fast_pq(true, pred, match_iou=0.5):
 
     true_masks = [None, ]
     for t in true_id_list[1:]:
-        t_mask = np.array(true == t, np.uint8)
+        t_mask = np.array(true==t, np.uint8)
         true_masks.append(t_mask)
 
     pred_masks = [None, ]
     for p in pred_id_list[1:]:
-        p_mask = np.array(pred == p, np.uint8)
+        p_mask = np.array(pred==p, np.uint8)
         pred_masks.append(p_mask)
 
     # prefill with value
@@ -211,8 +211,7 @@ def get_fast_pq(true, pred, match_iou=0.5):
     for true_id in true_id_list[1:]:  # 0-th is background
         t_mask = true_masks[true_id]
         pred_true_overlap = pred[t_mask > 0]
-        pred_true_overlap_id = np.unique(pred_true_overlap)
-        pred_true_overlap_id = list(pred_true_overlap_id)
+        pred_true_overlap_id = list(np.unique(pred_true_overlap))
         for pred_id in pred_true_overlap_id:
             if pred_id == 0:  # ignore
                 continue  # overlaping background

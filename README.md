@@ -2,6 +2,7 @@
 This repo was constructed for cell instance segmentation.
 1. run [horizontalVerticalMap.py](./horizontalVerticalMap.py) to save the horizontal and vertical maps.
 2. run [train.py](./train.py) to train the model
+3. run [inference.py](./inference.py) to inference
 ## Horizontal & Vertical Map
 ![HOrizontalVertical](./fig/HorizontalVerticalMap.png) 
 ---
