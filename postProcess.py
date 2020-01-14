@@ -34,8 +34,9 @@ def proc(pred):
     E = (1. - Sm) * seg
     E = -cv2.GaussianBlur(E, (3, 3), 0)
 
-    Sm[Sm >= .4] = 1
-    Sm[Sm < .4] = 0
+    thresSm = 0.7
+    Sm[Sm >= thresSm] = 1
+    Sm[Sm < thresSm] = 0
     marker = seg - Sm
     marker[marker < 0] = 0
     marker = binary_fill_holes(marker).astype('uint8')

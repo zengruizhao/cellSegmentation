@@ -5,7 +5,6 @@
 @Author : Zengrui Zhao
 """
 import torch
-import torch.nn as nn
 import numpy as np
 import argparse
 from pathlib import Path
@@ -23,7 +22,6 @@ import sys
 import segmentation_models_pytorch.utils.losses as smploss
 import torch.nn.functional as F
 import torch.nn as nn
-# from inference import inference
 from postProcess import proc
 from metrics import *
 
@@ -38,7 +36,7 @@ def parseArgs():
     parse.add_argument('--rootPth', type=str, default=Path(__file__).parent.parent / 'data')
     parse.add_argument('--logPth', type=str, default='../log')
     parse.add_argument('--numWorkers', type=int, default=14)
-    parse.add_argument('--evalFrequency', type=int, default=100)
+    parse.add_argument('--evalFrequency', type=int, default=50)
     parse.add_argument('--saveFrequency', type=int, default=100)
     parse.add_argument('--msgFrequency', type=int, default=5)
     parse.add_argument('--tensorboardPth', type=str, default='../tensorboard')
@@ -47,7 +45,7 @@ def parseArgs():
     return parse.parse_args()
 
 def eval(net, dataloader, logger):
-    dq, sq, pq, aji, dice2 = [], [], [], [], []
+    dq, sq, pq, dice = [], [], [], []
     with torch.no_grad():
         for img, mask in dataloader:
             img = img.to(device)
@@ -58,19 +56,17 @@ def eval(net, dataloader, logger):
                 # plt.imshow(output, cmap='jet')
                 # plt.show()
                 metricPQ, _ = get_fast_pq(mask[i, ...], output)
-                metricAJI = get_fast_aji_plus(mask[i, ...], output)
-                metricDice2 = get_fast_dice_2(mask[i, ...], output)
+                metricDice = get_dice_1(mask[i, ...], output)
                 dq.append(metricPQ[0])
                 sq.append(metricPQ[1])
                 pq.append(metricPQ[-1])
-                aji.append(metricAJI)
-                dice2.append(metricDice2)
+                dice.append(metricDice)
 
-    logger.info(f'dq: {np.mean(dq):.4f}, \n'
-                f'sq: {np.mean(sq):.4f}, \n'
-                f'pq: {np.mean(pq):.4f}, \n'
-                f'AJI: {np.mean(aji):.4f}, \n'
-                f'Dice2: {np.mean(dice2):.4f}.')
+    logger.info(f'\n'
+                f'- dq: {np.mean(dq):.4f}, \n'
+                f'- sq: {np.mean(sq):.4f}, \n'
+                f'- pq: {np.mean(pq):.4f}, \n'
+                f'- Dice: {np.mean(dice):.4f}.')
 
 def main(args, logger):
     writter = SummaryWriter(logdir=args.subTensorboardPth)
@@ -94,10 +90,11 @@ def main(args, logger):
                              drop_last=False,
                              num_workers=args.numWorkers)
     net = model().to(device)
+    # x = torch.autograd.Variable(torch.rand(1, 3, 384, 384))
+    # writter.add_graph(net, x)
     net = nn.DataParallel(net)
     criterionMSE = nn.MSELoss().to(device)
     criterionDice = smploss.DiceLoss(eps=1e-7).to(device)
-    # criterionCE = nn.CrossEntropyLoss().to(device)
     criterionCE = nn.BCELoss().to(device)
     optimizer = Ranger(net.parameters(), lr=1.e-2)
     runningLoss, MSEloss, CEloss, Diceloss = [], [], [], []
@@ -121,17 +118,16 @@ def main(args, logger):
             predictionGradient = getGradient(branchMSE)
             gtGradient = getGradient(horizontalVertical)
 
-            loss1 = criterionMSE(branchMSE, horizontalVertical) + \
-                   2. * criterionMSE(predictionGradient, gtGradient)
+            loss1 = criterionMSE(branchMSE, horizontalVertical) + 2. * criterionMSE(predictionGradient, gtGradient)
             loss2 = criterionCE(branchSeg, mask)
             loss3 = criterionDice(branchSeg, mask)
-            loss = 2 * loss1 + loss2 + 2 * loss3
+            loss = loss1 + loss2 + loss3
 
             loss.backward()
             optimizer.step()
             MSEloss.append(loss1.item())
-            CEloss.append(loss3.item())
-            Diceloss.append(loss2.item())
+            CEloss.append(loss2.item())
+            Diceloss.append(loss3.item())
             runningLoss.append(loss.item())
             if iter % args.msgFrequency == 0:
                 logger.info(f'epoch:{epoch}/{args.epoch}, '
@@ -140,7 +136,7 @@ def main(args, logger):
                             f'Diceloss:{np.mean(Diceloss):.4f}, '
                             f'CEloss:{np.mean(CEloss):.4f}')
 
-                # writter.add_scalar('Loss', np.mean(runningLoss))
+                writter.add_scalar('Loss', np.mean(runningLoss), iter)
                 runningLoss, MSEloss, CEloss, Diceloss = [], [], [], []
 
     eval(net, testLoader, logger)
