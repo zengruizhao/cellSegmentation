@@ -7,6 +7,7 @@
 from torch.utils.data import Dataset
 from torchvision import transforms
 import torch.nn.functional as tf
+from metrics import *
 import numpy as np
 from pathlib import Path
 import os
@@ -19,7 +20,6 @@ import matplotlib.pyplot as plt
 from skimage.morphology import remove_small_objects, watershed
 from scipy.ndimage import measurements
 from scipy.ndimage.morphology import binary_fill_holes
-from metrics import *
 
 def getGradient(input, show=False):
     def getSobelKernel(size):
@@ -110,61 +110,97 @@ class Data(Dataset):
     def augmentation(self, img, mask, horizontal, vertical):
         blurM = MedianBlur()
         blurG = GaussianBlur()
-        if self.crop:
-            while True:
-                transform = RandomCrop(self.cropSize[0], self.cropSize[1])
-                wh = transform.get_params()
-                img_ = transform.apply(np.array(img), h_start=wh['h_start'], w_start=wh['w_start'])
-                vertical_ = transform.apply(np.array(vertical), h_start=wh['h_start'], w_start=wh['w_start'])
-                horizontal_ = transform.apply(np.array(horizontal), h_start=wh['h_start'], w_start=wh['w_start'])
-                mask_ = transform.apply(np.array(mask), h_start=wh['h_start'], w_start=wh['w_start'])
-                if len(np.unique(mask_)) == 2:
-                    img, vertical, horizontal, mask = Image.fromarray(img_), \
-                                                      Image.fromarray(vertical_), \
-                                                      Image.fromarray(horizontal_), \
-                                                      Image.fromarray(mask_)
-                    break
-        if random.random() < .33:
+        # temp = random.random()
+        # if temp < .33:
+        #     if random.random() < .3:
+        #         img = img.transpose(Image.FLIP_LEFT_RIGHT)
+        #         mask = mask.transpose(Image.FLIP_LEFT_RIGHT)
+        #         horizontal = horizontal.transpose(Image.FLIP_LEFT_RIGHT)
+        #         vertical = vertical.transpose(Image.FLIP_LEFT_RIGHT)
+        # elif temp < .66:
+        #     if random.random() < .3:
+        #         img = img.transpose(Image.FLIP_TOP_BOTTOM)
+        #         mask = mask.transpose(Image.FLIP_TOP_BOTTOM)
+        #         horizontal = horizontal.transpose(Image.FLIP_TOP_BOTTOM)
+        #         vertical = vertical.transpose(Image.FLIP_TOP_BOTTOM)
+        # else:
+        #     if random.random() < .3:
+        #         angle = np.random.choice([0, 90, -90, 180])
+        #         img = F.rotate(img, angle=angle, resample=Image.BILINEAR)
+        #         mask = F.rotate(mask, angle=angle)
+        #         horizontal = F.rotate(horizontal, angle=angle)
+        #         vertical = F.rotate(vertical, angle=angle)
+
+        if random.random() < .2:  # brightness
+            bf_list = np.linspace(0.8, 1.2, 9)
+            bf = np.random.choice(bf_list)
+            img = F.adjust_brightness(img, brightness_factor=bf)
+        if random.random() < .2:  # contrast
+            cf_list = np.linspace(0.8, 1.2, 5)
+            cf = np.random.choice(cf_list)
+            img = F.adjust_contrast(img, contrast_factor=cf)
+        if random.random() < .2:  # gamma
+            gm_list = np.linspace(0.8, 1.2, 5)
+            gm = np.random.choice(gm_list)
+            img = F.adjust_gamma(img, gamma=gm)
+        if random.random() < .2:
+            hf_list = np.linspace(-0.1, 0.1, 11)
+            hf = np.random.choice(hf_list)
+            img = F.adjust_hue(img, hue_factor=hf)
+        if random.random() < .2:
+            sf_list = np.linspace(0.8, 1.2, 5)
+            sf = np.random.choice(sf_list)
+            img = F.adjust_saturation(img, saturation_factor=sf)
+        temp = random.random()
+        if temp < .33:
+            img = blurG.apply(np.array(img))
+        elif temp < .66:
+            img = blurM.apply(np.array(img))
+
+        return img, mask, horizontal, vertical
+
+    def augmentation1(self, img, mask, horizontal, vertical):
+        blurM = MedianBlur()
+        blurG = GaussianBlur()
+        if random.random() < .5:
             img = img.transpose(Image.FLIP_LEFT_RIGHT)
             mask = mask.transpose(Image.FLIP_LEFT_RIGHT)
             horizontal = horizontal.transpose(Image.FLIP_LEFT_RIGHT)
             vertical = vertical.transpose(Image.FLIP_LEFT_RIGHT)
-        elif random.random() < .66:
+        if random.random() < .5:
             img = img.transpose(Image.FLIP_TOP_BOTTOM)
             mask = mask.transpose(Image.FLIP_TOP_BOTTOM)
             horizontal = horizontal.transpose(Image.FLIP_TOP_BOTTOM)
             vertical = vertical.transpose(Image.FLIP_TOP_BOTTOM)
-        else:
+        if random.random() < .5:
             angle = np.random.choice([0, 90, -90, 180])
             img = F.rotate(img, angle=angle, resample=Image.BILINEAR)
             mask = F.rotate(mask, angle=angle)
             horizontal = F.rotate(horizontal, angle=angle)
             vertical = F.rotate(vertical, angle=angle)
 
-        if random.random() < 0.3:  # brightness
+        if random.random() < .3:  # brightness
             bf_list = np.linspace(0.8, 1.2, 9)
             bf = np.random.choice(bf_list)
             img = F.adjust_brightness(img, brightness_factor=bf)
-        if random.random() < 0.3:  # contrast
+        if random.random() < .3:  # contrast
             cf_list = np.linspace(0.8, 1.2, 5)
             cf = np.random.choice(cf_list)
             img = F.adjust_contrast(img, contrast_factor=cf)
-        if random.random() < 0.3:  # gamma
+        if random.random() < .3:  # gamma
             gm_list = np.linspace(0.8, 1.2, 5)
             gm = np.random.choice(gm_list)
             img = F.adjust_gamma(img, gamma=gm)
-        if random.random() < 0.3:
+        if random.random() < .3:
             hf_list = np.linspace(-0.1, 0.1, 11)
             hf = np.random.choice(hf_list)
             img = F.adjust_hue(img, hue_factor=hf)
-        if random.random() < 0.3:
+        if random.random() < .3:
             sf_list = np.linspace(0.8, 1.2, 5)
             sf = np.random.choice(sf_list)
             img = F.adjust_saturation(img, saturation_factor=sf)
-        if random.random() < .5:
-            img = blurG.apply(np.array(img))
-        else:
-            img = blurM.apply(np.array(img))
+        img = blurG.apply(np.array(img))
+        img = blurM.apply(np.array(img))
 
         return img, mask, horizontal, vertical
 
@@ -181,11 +217,26 @@ class Data(Dataset):
             mask[mask > 0] = 1
             vertical = np.load(verticalPath)
             horizontal = np.load(horizontalPath)
+            if self.crop:
+                while True:
+                    transform = RandomCrop(self.cropSize[0], self.cropSize[1])
+                    wh = transform.get_params()
+                    img_ = transform.apply(np.array(img), h_start=wh['h_start'], w_start=wh['w_start'])
+                    vertical_ = transform.apply(np.array(vertical), h_start=wh['h_start'], w_start=wh['w_start'])
+                    horizontal_ = transform.apply(np.array(horizontal), h_start=wh['h_start'], w_start=wh['w_start'])
+                    mask_ = transform.apply(np.array(mask), h_start=wh['h_start'], w_start=wh['w_start'])
+                    if len(np.unique(mask_)) == 2:
+                        img, vertical, horizontal, mask = Image.fromarray(img_), \
+                                                          Image.fromarray(vertical_), \
+                                                          Image.fromarray(horizontal_), \
+                                                          Image.fromarray(mask_)
+                        break
+
             if self.isAugmentation:
-                img, mask, horizontal, vertical = self.augmentation(img,
-                                                                    Image.fromarray(mask),
-                                                                    Image.fromarray(horizontal),
-                                                                    Image.fromarray(vertical))
+                img, mask, horizontal, vertical = self.augmentation1(img,
+                                                                     mask,
+                                                                     horizontal,
+                                                                     vertical)
             horizontal = np.array(horizontal)[..., None]
             vertical = np.array(vertical)[..., None]
             mask = np.array(mask)
@@ -229,31 +280,32 @@ class Datatemp(Dataset):
         return len(self.imgs)
 
 if __name__ == '__main__':
-    data = Datatemp(root=Path(__file__).parent.parent / 'data/train')
-    for i in data:
-        mask0, mask1, hv = i[0], i[1], i[2]
-        pred, E = proc(mask1, hv)
-        metricPQ, _ = get_fast_pq(mask0, pred)
-        metricAJI = get_fast_aji_plus(mask0, pred)
-        metricDice2 = get_fast_dice_2(mask0, pred)
-        print(f'AJI: {metricAJI:.4f}, '
-              f'Dice2: {metricDice2:.4f}, '
-              f'dq: {metricPQ[0]:.4f}, '
-              f'sq: {metricPQ[1]:.4f}, '
-              f'pq: {metricPQ[2]:.4f}')
-        fig, ax = plt.subplots(1, 3)
-        ax[0].imshow(mask0, cmap='jet')
-        ax[1].imshow(pred, cmap='jet')
-        ax[2].imshow(E, cmap='jet')
-        ax[0].set_title('Mask', fontsize=20)
-        ax[1].set_title('Proc', fontsize=20)
-        ax[2].set_title('Energy', fontsize=20)
-        plt.show()
-        break
-    # data = Data(root=Path(__file__).parent.parent / 'data/train',
-    #            mode='train',
-    #            isAugmentation=True,
-    #            cropSize=(384, 384))
+    # data = Datatemp(root=Path(__file__).parent.parent / 'data/train')
+    # for i in data:
+    #     mask0, mask1, hv = i[0], i[1], i[2]
+    #     pred, E = proc(mask1, hv)
+    #     metricPQ, _ = get_fast_pq(mask0, pred)
+    #     metricAJI = get_fast_aji_plus(mask0, pred)
+    #     metricDice2 = get_fast_dice_2(mask0, pred)
+    #     print(f'AJI: {metricAJI:.4f}, '
+    #           f'Dice2: {metricDice2:.4f}, '
+    #           f'dq: {metricPQ[0]:.4f}, '
+    #           f'sq: {metricPQ[1]:.4f}, '
+    #           f'pq: {metricPQ[2]:.4f}')
+    #     fig, ax = plt.subplots(1, 3)
+    #     ax[0].imshow(mask0, cmap='jet')
+    #     ax[1].imshow(pred, cmap='jet')
+    #     ax[2].imshow(E, cmap='jet')
+    #     ax[0].set_title('Mask', fontsize=20)
+    #     ax[1].set_title('Proc', fontsize=20)
+    #     ax[2].set_title('Energy', fontsize=20)
+    #     plt.show()
+    #     break
+    data = Data(root=Path(__file__).parent.parent / 'data/train',
+                mode='train',
+                isAugmentation=True,
+                cropSize=(384, 384))
+    data[0]
     # for i in data:
     #     img = np.transpose(np.array(i[0]), (1, 2, 0))
     #     mask = np.squeeze(i[1])

@@ -12,7 +12,7 @@ from scipy.ndimage.morphology import binary_fill_holes
 import matplotlib.pyplot as plt
 
 def proc(pred):
-    thresSeg, thresSm = .95, .7
+    thresSeg, thresSm = .95, .8
     pred = pred.cpu().detach().numpy()
     seg, h, v = pred[0, ...,], pred[1, ...], pred[2, ...]
     seg[seg >= thresSeg] = 1

@@ -13,5 +13,7 @@ There are 2 branches consisting of horizontalVertical(MSE loss) and segmentation
 - MSE loss: (l1)the loss of the horizontal and vertical map + (l2)the loss of the gradient of the horizontal and vertical map
 - Dice loss: sementic segmentation output(l3)
 - CE loss: sementic segmentation output(l4)
+
+![model](./fig/Digraph.gv.png)
 ## Loss
 Loss = l1 + 2 * l2 + l3 + l4

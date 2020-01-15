@@ -13,14 +13,14 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 from model import model
 
-device = torch.device('cuda: 0' if torch.cuda.is_available() else 'cpu')
-# device = torch.device('cpu')
+# device = torch.device('cuda: 0' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cpu')
 meanStd = ((0.80508233, 0.80461432, 0.8043749),(0.14636562, 0.1467832,  0.14712358))
 
 def parseArgs():
     parse = argparse.ArgumentParser()
     parse.add_argument('--rootPth', type=str, default=Path(__file__).parent.parent / 'data')
-    parse.add_argument('--modelPth', type=str, default='../model/200114-164632/out_100.pth')
+    parse.add_argument('--modelPth', type=str, default='../model/200115-152745/out_100.pth')
 
     return parse.parse_args()
 

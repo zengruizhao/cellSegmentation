@@ -13,7 +13,6 @@ from logger import getLogger
 import time
 import os.path as osp
 import os
-import matplotlib.pyplot as plt
 from tensorboardX import SummaryWriter
 from dataset import Data, getGradient
 from torch.utils.data import DataLoader
@@ -69,7 +68,7 @@ def main(args, logger):
     trainSet = Data(root=Path(args.rootPth) / 'train',
                     mode='train',
                     isAugmentation=True,
-                    cropSize=(384, 384))
+                    cropSize=(448, 448))
     trainLoader = DataLoader(trainSet,
                              batch_size=args.batchsizeTrain,
                              shuffle=True,
@@ -86,8 +85,8 @@ def main(args, logger):
                              drop_last=False,
                              num_workers=args.numWorkers)
     net = model().to(device)
-    # x = torch.autograd.Variable(torch.rand(1, 3, 384, 384))
-    # writter.add_graph(net, x)
+    x = torch.autograd.Variable(torch.randn(1, 3, 384, 384)).to(device)
+    writter.add_graph(net, x)
     net = nn.DataParallel(net)
     criterionMSE = nn.MSELoss().to(device)
     criterionDice = smploss.DiceLoss(eps=1e-7).to(device)
