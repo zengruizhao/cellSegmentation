@@ -14,12 +14,12 @@ from torchsummary import summary
 import torch
 
 class model(nn.Module):
-    def __init__(self, encoder_depth=5, decoder_channels=[1024, 512, 256, 128, 64]):
+    def __init__(self, encoder_depth=5, decoder_channels=[512, 256, 128, 64, 32]):
         super().__init__()
         net = smp.Unet(classes=1,
                        encoder_depth=encoder_depth,
                        decoder_channels=decoder_channels,
-                       encoder_name='se_resnext50_32x4d',
+                       encoder_name='senet154',
                        activation='sigmoid')
         self.encoder = net.encoder
         self.SegDecoder = net.decoder
@@ -27,7 +27,7 @@ class model(nn.Module):
                                      decoder_channels=decoder_channels,
                                      n_blocks=encoder_depth)
         self.segmentation_head = net.segmentation_head
-        self.horizontalVertical_head = SegmentationHead(in_channels=64,
+        self.horizontalVertical_head = SegmentationHead(in_channels=32,
                                                         out_channels=2,
                                                         kernel_size=3)
 

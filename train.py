@@ -27,9 +27,9 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 def parseArgs():
     parse = argparse.ArgumentParser()
-    parse.add_argument('--epoch', type=int, default=1000)
-    parse.add_argument('--batchsizeTrain', type=int, default=8)
-    parse.add_argument('--batchsizeTest', type=int, default=4)
+    parse.add_argument('--epoch', type=int, default=500)
+    parse.add_argument('--batchsizeTrain', type=int, default=4)
+    parse.add_argument('--batchsizeTest', type=int, default=2)
     parse.add_argument('--rootPth', type=str, default=Path(__file__).parent.parent / 'data')
     parse.add_argument('--logPth', type=str, default='../log')
     parse.add_argument('--numWorkers', type=int, default=14)
@@ -68,7 +68,7 @@ def main(args, logger):
     trainSet = Data(root=Path(args.rootPth) / 'train',
                     mode='train',
                     isAugmentation=True,
-                    cropSize=(448, 448))
+                    cropSize=(512, 512))
     trainLoader = DataLoader(trainSet,
                              batch_size=args.batchsizeTrain,
                              shuffle=True,
@@ -76,14 +76,12 @@ def main(args, logger):
                              drop_last=False,
                              num_workers=args.numWorkers)
     testSet = Data(root=Path(args.rootPth) / 'test',
-                   mode='test',
-                   isAugmentation=False)
+                   mode='test')
     testLoader = DataLoader(testSet,
-                             batch_size=args.batchsizeTest,
-                             shuffle=False,
-                             pin_memory=False,
-                             drop_last=False,
-                             num_workers=args.numWorkers)
+                            batch_size=args.batchsizeTest,
+                            shuffle=False,
+                            pin_memory=False,
+                            num_workers=args.numWorkers)
     net = model().to(device)
     x = torch.autograd.Variable(torch.randn(1, 3, 384, 384)).to(device)
     writter.add_graph(net, x)
@@ -135,6 +133,9 @@ def main(args, logger):
                 runningLoss, MSEloss, CEloss, Diceloss = [], [], [], []
 
     eval(net, testLoader, logger)
+    modelName = Path(args.subModelPth) / 'final.pth'
+    state_dict = net.module.state_dict() if hasattr(net, 'module') else net.state_dict()
+    torch.save(state_dict, modelName)
 
 if __name__ == '__main__':
     args = parseArgs()

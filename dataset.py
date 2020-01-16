@@ -110,75 +110,6 @@ class Data(Dataset):
     def augmentation(self, img, mask, horizontal, vertical):
         blurM = MedianBlur()
         blurG = GaussianBlur()
-        # temp = random.random()
-        # if temp < .33:
-        #     if random.random() < .3:
-        #         img = img.transpose(Image.FLIP_LEFT_RIGHT)
-        #         mask = mask.transpose(Image.FLIP_LEFT_RIGHT)
-        #         horizontal = horizontal.transpose(Image.FLIP_LEFT_RIGHT)
-        #         vertical = vertical.transpose(Image.FLIP_LEFT_RIGHT)
-        # elif temp < .66:
-        #     if random.random() < .3:
-        #         img = img.transpose(Image.FLIP_TOP_BOTTOM)
-        #         mask = mask.transpose(Image.FLIP_TOP_BOTTOM)
-        #         horizontal = horizontal.transpose(Image.FLIP_TOP_BOTTOM)
-        #         vertical = vertical.transpose(Image.FLIP_TOP_BOTTOM)
-        # else:
-        #     if random.random() < .3:
-        #         angle = np.random.choice([0, 90, -90, 180])
-        #         img = F.rotate(img, angle=angle, resample=Image.BILINEAR)
-        #         mask = F.rotate(mask, angle=angle)
-        #         horizontal = F.rotate(horizontal, angle=angle)
-        #         vertical = F.rotate(vertical, angle=angle)
-
-        if random.random() < .2:  # brightness
-            bf_list = np.linspace(0.8, 1.2, 9)
-            bf = np.random.choice(bf_list)
-            img = F.adjust_brightness(img, brightness_factor=bf)
-        if random.random() < .2:  # contrast
-            cf_list = np.linspace(0.8, 1.2, 5)
-            cf = np.random.choice(cf_list)
-            img = F.adjust_contrast(img, contrast_factor=cf)
-        if random.random() < .2:  # gamma
-            gm_list = np.linspace(0.8, 1.2, 5)
-            gm = np.random.choice(gm_list)
-            img = F.adjust_gamma(img, gamma=gm)
-        if random.random() < .2:
-            hf_list = np.linspace(-0.1, 0.1, 11)
-            hf = np.random.choice(hf_list)
-            img = F.adjust_hue(img, hue_factor=hf)
-        if random.random() < .2:
-            sf_list = np.linspace(0.8, 1.2, 5)
-            sf = np.random.choice(sf_list)
-            img = F.adjust_saturation(img, saturation_factor=sf)
-        temp = random.random()
-        if temp < .33:
-            img = blurG.apply(np.array(img))
-        elif temp < .66:
-            img = blurM.apply(np.array(img))
-
-        return img, mask, horizontal, vertical
-
-    def augmentation1(self, img, mask, horizontal, vertical):
-        blurM = MedianBlur()
-        blurG = GaussianBlur()
-        if random.random() < .5:
-            img = img.transpose(Image.FLIP_LEFT_RIGHT)
-            mask = mask.transpose(Image.FLIP_LEFT_RIGHT)
-            horizontal = horizontal.transpose(Image.FLIP_LEFT_RIGHT)
-            vertical = vertical.transpose(Image.FLIP_LEFT_RIGHT)
-        if random.random() < .5:
-            img = img.transpose(Image.FLIP_TOP_BOTTOM)
-            mask = mask.transpose(Image.FLIP_TOP_BOTTOM)
-            horizontal = horizontal.transpose(Image.FLIP_TOP_BOTTOM)
-            vertical = vertical.transpose(Image.FLIP_TOP_BOTTOM)
-        if random.random() < .5:
-            angle = np.random.choice([0, 90, -90, 180])
-            img = F.rotate(img, angle=angle, resample=Image.BILINEAR)
-            mask = F.rotate(mask, angle=angle)
-            horizontal = F.rotate(horizontal, angle=angle)
-            vertical = F.rotate(vertical, angle=angle)
-
         if random.random() < .3:  # brightness
             bf_list = np.linspace(0.8, 1.2, 9)
             bf = np.random.choice(bf_list)
@@ -233,10 +164,10 @@ class Data(Dataset):
                         break
 
             if self.isAugmentation:
-                img, mask, horizontal, vertical = self.augmentation1(img,
-                                                                     mask,
-                                                                     horizontal,
-                                                                     vertical)
+                img, mask, horizontal, vertical = self.augmentation(img,
+                                                                    mask,
+                                                                    horizontal,
+                                                                    vertical)
             horizontal = np.array(horizontal)[..., None]
             vertical = np.array(vertical)[..., None]
             mask = np.array(mask)
@@ -303,16 +234,26 @@ if __name__ == '__main__':
     #     break
     data = Data(root=Path(__file__).parent.parent / 'data/train',
                 mode='train',
-                isAugmentation=True,
-                cropSize=(384, 384))
-    data[0]
-    # for i in data:
-    #     img = np.transpose(np.array(i[0]), (1, 2, 0))
-    #     mask = np.squeeze(i[1])
-    #     fig, ax = plt.subplots(1, 2)
-    #     ax[0].imshow(img)
-    #     ax[1].imshow(mask)
-    #     plt.show()
+                isAugmentation=False)
+    for i in data:
+        img = Image.fromarray(np.array(i[0], dtype=np.uint8))
+        mask = Image.fromarray(i[1][0, ...])
+        vertical = Image.fromarray(i[-1][0, ...])
+        horizontal = Image.fromarray(i[-1][1, ...])
+        img_ = img.transpose(Image.FLIP_LEFT_RIGHT)
+        mask_ = mask.transpose(Image.FLIP_LEFT_RIGHT)
+        vertical_ = vertical.transpose(Image.FLIP_LEFT_RIGHT)
+        horizontal_ = horizontal.transpose(Image.FLIP_LEFT_RIGHT)
+        fig, ax = plt.subplots(2, 4)
+        ax[0, 0].imshow(img)
+        ax[0, 1].imshow(mask)
+        ax[0, 2].imshow(vertical, cmap='jet')
+        ax[0, 3].imshow(horizontal, cmap='jet')
+        ax[1, 0].imshow(img_)
+        ax[1, 1].imshow(mask_)
+        ax[1, 2].imshow(vertical_, cmap='jet')
+        ax[1, 3].imshow(horizontal_,cmap='jet')
+        plt.show()
 
     # getGradient(hv, show=True)
     # print(np.unique(data[0][2]))

@@ -17,3 +17,5 @@ There are 2 branches consisting of horizontalVertical(MSE loss) and segmentation
 ![model](./fig/Digraph.gv.png)
 ## Loss
 Loss = l1 + 2 * l2 + l3 + l4
+## Data Augmentation
+_Don't use flip or rotation_
