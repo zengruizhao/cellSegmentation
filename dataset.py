@@ -12,9 +12,9 @@ import numpy as np
 from pathlib import Path
 import os
 from PIL import Image
-import random
 import torchvision.transforms.functional as F
-from albumentations.augmentations.transforms import RandomCrop, GaussianBlur, MedianBlur, VerticalFlip, HorizontalFlip, Rotate
+from albumentations.augmentations.transforms import RandomCrop, \
+    Blur, RandomBrightnessContrast, RandomGamma, HueSaturationValue
 import torch
 import matplotlib.pyplot as plt
 from skimage.morphology import remove_small_objects, watershed
@@ -107,33 +107,18 @@ class Data(Dataset):
                                             transforms.Normalize((0.80508233, 0.80461432, 0.8043749),
                                                                  (0.14636562, 0.1467832,  0.14712358))])
 
-    def augmentation(self, img, mask, horizontal, vertical):
-        blurM = MedianBlur()
-        blurG = GaussianBlur()
-        if random.random() < .3:  # brightness
-            bf_list = np.linspace(0.8, 1.2, 9)
-            bf = np.random.choice(bf_list)
-            img = F.adjust_brightness(img, brightness_factor=bf)
-        if random.random() < .3:  # contrast
-            cf_list = np.linspace(0.8, 1.2, 5)
-            cf = np.random.choice(cf_list)
-            img = F.adjust_contrast(img, contrast_factor=cf)
-        if random.random() < .3:  # gamma
-            gm_list = np.linspace(0.8, 1.2, 5)
-            gm = np.random.choice(gm_list)
-            img = F.adjust_gamma(img, gamma=gm)
-        if random.random() < .3:
-            hf_list = np.linspace(-0.1, 0.1, 11)
-            hf = np.random.choice(hf_list)
-            img = F.adjust_hue(img, hue_factor=hf)
-        if random.random() < .3:
-            sf_list = np.linspace(0.8, 1.2, 5)
-            sf = np.random.choice(sf_list)
-            img = F.adjust_saturation(img, saturation_factor=sf)
-        img = blurG.apply(np.array(img))
-        img = blurM.apply(np.array(img))
+    def augmentation(self, img):
+        blur = Blur()
+        hsv = HueSaturationValue()
+        gamma = RandomGamma()
+        brightnessContrast = RandomBrightnessContrast()
 
-        return img, mask, horizontal, vertical
+        img = hsv.apply(img)
+        img = gamma.apply(img)
+        img = brightnessContrast.apply(img)
+        img = blur.apply(img)
+
+        return img
 
     def __getitem__(self, item):
         imgPath = Path(Path(self.root) / 'Images' / self.imgs[item])
@@ -157,20 +142,15 @@ class Data(Dataset):
                     horizontal_ = transform.apply(np.array(horizontal), h_start=wh['h_start'], w_start=wh['w_start'])
                     mask_ = transform.apply(np.array(mask), h_start=wh['h_start'], w_start=wh['w_start'])
                     if len(np.unique(mask_)) == 2:
-                        img, vertical, horizontal, mask = Image.fromarray(img_), \
-                                                          Image.fromarray(vertical_), \
-                                                          Image.fromarray(horizontal_), \
-                                                          Image.fromarray(mask_)
+                        img, vertical, horizontal, mask = img_, vertical_, horizontal_, mask_
                         break
 
             if self.isAugmentation:
-                img, mask, horizontal, vertical = self.augmentation(img,
-                                                                    mask,
-                                                                    horizontal,
-                                                                    vertical)
-            horizontal = np.array(horizontal)[..., None]
-            vertical = np.array(vertical)[..., None]
-            mask = np.array(mask)
+                img = self.augmentation(img)
+
+            horizontal = np.array(horizontal, dtype=np.float32)[..., None]
+            vertical = np.array(vertical, dtype=np.float32)[..., None]
+            mask = np.array(mask, dtype=np.float32)
             assert (len(np.unique(mask)) == 2)
             horizontalVertical = np.concatenate((vertical, horizontal), axis=-1)
             return self.toTensor(img), mask[None, ...], np.transpose(horizontalVertical, (2, 0, 1))

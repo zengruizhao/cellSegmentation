@@ -14,8 +14,10 @@ from torchsummary import summary
 import torch
 
 class model(nn.Module):
-    def __init__(self, encoder_depth=5, decoder_channels=[512, 256, 128, 64, 32]):
+    def __init__(self, encoder_depth=4, decoder_channels=None):
         super().__init__()
+        if decoder_channels is None:
+            decoder_channels = [128, 64, 32, 16]
         net = smp.Unet(classes=1,
                        encoder_depth=encoder_depth,
                        decoder_channels=decoder_channels,
@@ -27,7 +29,7 @@ class model(nn.Module):
                                      decoder_channels=decoder_channels,
                                      n_blocks=encoder_depth)
         self.segmentation_head = net.segmentation_head
-        self.horizontalVertical_head = SegmentationHead(in_channels=32,
+        self.horizontalVertical_head = SegmentationHead(in_channels=16,
                                                         out_channels=2,
                                                         kernel_size=3)
 
@@ -39,13 +41,14 @@ class model(nn.Module):
         return (segmentation, horizontalVertical)
 
 if __name__ == '__main__':
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cpu')
     net = model().to(device)
     print(net)
-    summary(net, (3, 256, 256))
+    summary(net, (3, 32, 32))
     #
-    net = model()
-    x = Variable(torch.randn(1, 3, 384, 384))
-    y = net(x)
-    vis_graph = make_dot(y, params=dict(list(net.named_parameters()) + [('x', x)]))
-    vis_graph.view()
+    # net = model()
+    # x = Variable(torch.randn(1, 3, 384, 384))
+    # y = net(x)
+    # vis_graph = make_dot(y, params=dict(list(net.named_parameters()) + [('x', x)]))
+    # vis_graph.view()

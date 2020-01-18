@@ -27,8 +27,8 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 def parseArgs():
     parse = argparse.ArgumentParser()
-    parse.add_argument('--epoch', type=int, default=500)
-    parse.add_argument('--batchsizeTrain', type=int, default=4)
+    parse.add_argument('--epoch', type=int, default=1000)
+    parse.add_argument('--batchsizeTrain', type=int, default=8)
     parse.add_argument('--batchsizeTest', type=int, default=2)
     parse.add_argument('--rootPth', type=str, default=Path(__file__).parent.parent / 'data')
     parse.add_argument('--logPth', type=str, default='../log')
@@ -68,12 +68,12 @@ def main(args, logger):
     trainSet = Data(root=Path(args.rootPth) / 'train',
                     mode='train',
                     isAugmentation=True,
-                    cropSize=(512, 512))
+                    cropSize=(384, 384))
     trainLoader = DataLoader(trainSet,
                              batch_size=args.batchsizeTrain,
                              shuffle=True,
                              pin_memory=False,
-                             drop_last=False,
+                             drop_last=True,
                              num_workers=args.numWorkers)
     testSet = Data(root=Path(args.rootPth) / 'test',
                    mode='test')
@@ -83,7 +83,7 @@ def main(args, logger):
                             pin_memory=False,
                             num_workers=args.numWorkers)
     net = model().to(device)
-    x = torch.autograd.Variable(torch.randn(1, 3, 384, 384)).to(device)
+    x = torch.autograd.Variable(torch.randn(1, 3, 512, 512)).to(device)
     writter.add_graph(net, x)
     net = nn.DataParallel(net)
     criterionMSE = nn.MSELoss().to(device)

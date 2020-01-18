@@ -13,19 +13,19 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 from model import model
 
-device = torch.device('cuda: 0' if torch.cuda.is_available() else 'cpu')
-# device = torch.device('cpu')
+# device = torch.device('cuda: 0' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cpu')
 meanStd = ((0.80508233, 0.80461432, 0.8043749),(0.14636562, 0.1467832,  0.14712358))
 
 def parseArgs():
     parse = argparse.ArgumentParser()
     parse.add_argument('--rootPth', type=str, default=Path(__file__).parent.parent / 'data')
-    parse.add_argument('--modelPth', type=str, default='../model/200116-141329/final.pth')
+    parse.add_argument('--modelPth', type=str, default='../model/200117-005312/final.pth')
 
     return parse.parse_args()
 
 def main(args):
-    data = Data(root=Path(args.rootPth) / 'train',
+    data = Data(root=Path(args.rootPth) / 'test',
                 mode='test',
                 isAugmentation=False)
     dataLoader = DataLoader(data)
@@ -44,8 +44,8 @@ def main(args):
                   f'DQ: {metricPQ[0]}, '
                   f'SQ: {metricPQ[1]}, '
                   f'PQ: {metricPQ[2]}')
-            # plt.imshow(output, cmap='jet')
-            # plt.show()
+            plt.imshow(output, cmap='jet')
+            plt.show()
 
 if __name__ == '__main__':
     args = parseArgs()
